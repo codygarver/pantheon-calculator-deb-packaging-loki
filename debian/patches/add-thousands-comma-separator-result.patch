@@ -1,0 +1,64 @@
+--- a/src/Core/Evaluation.vala
++++ b/src/Core/Evaluation.vala
+@@ -287,7 +287,23 @@
+                 s = s.slice (0, s.length - 1);
+             if (s.last_index_of (Posix.nl_langinfo (Posix.NLItem.RADIXCHAR)) == s.length - 1)
+                 s = s.slice (0, s.length - 1);
++            s = insert_separators (s);
+             return s;
+         }
+     }
++
++        private string insert_separators (string s) {
++	    unichar decimal_symbol = Posix.nl_langinfo (Posix.NLItem.RADIXCHAR).to_utf8 ()[0];
++ 	    unichar separator_symbol = Posix.nl_langinfo (Posix.NLItem.THOUSEP).to_utf8 ()[0];
++	    var builder = new StringBuilder (s);
++	    var decimalPos = s.last_index_of_char(decimal_symbol);
++	    if(decimalPos == -1){
++                decimalPos = s.length;
++	    }
++	    for (int i = decimalPos - 3; i > 0; i-=3) {
++	        builder.insert_unichar (i, separator_symbol);
++            }
++	    return builder.str;
++        }
+ }
++
+--- a/src/Core/Scanner.vala
++++ b/src/Core/Scanner.vala
+@@ -23,17 +23,18 @@
+     }
+ 
+     public class Scanner : Object {
+-        public unowned string str;
+-        public ssize_t pos;
+-        public unichar[] uc;
++        public unowned string str { get; construct set; }
++        public ssize_t pos { get; set; default = 0; }
+ 
+-        private unichar decimal_symbol;
++        public unichar[] uc = new unichar[0];
++
++        public unichar decimal_symbol { get; construct set; }
++        public unichar separator_symbol { get; construct set; }
+ 
+         public Scanner (string str) {
+-            this.str = str;
+-            this.pos = 0;
+-            this.uc = new unichar[0];
+-            this.decimal_symbol = Posix.nl_langinfo (Posix.NLItem.RADIXCHAR).to_utf8 ()[0];
++	    Object (str: str,
++                    decimal_symbol: Posix.nl_langinfo (Posix.NLItem.RADIXCHAR).to_utf8 ()[0],
++                    separator_symbol: Posix.nl_langinfo (Posix.NLItem.THOUSEP).to_utf8 ()[0]);
+         }
+ 
+         public static List<Token> scan (string input) throws SCANNER_ERROR {
+@@ -44,7 +45,7 @@
+             Evaluation e = new Evaluation ();
+ 
+             for (int i = 0; input.get_next_char (ref index, out c); i++) {
+-                if (c != ' ') {
++                if (c != ' ' && c != scanner.separator_symbol) {
+                     scanner.uc.resize (scanner.uc.length + 1);
+                     scanner.uc[scanner.uc.length - 1] = c;
+                 }
